@@ -1,0 +1,220 @@
+--1
+
+SELECT
+  SYSDATE AS "SYSDATE",
+  TO_CHAR(SYSDATE, 'FMDAY, MONTH, FMYEAR') AS "DAY_MONTH_YEAR",
+  TO_CHAR(SYSDATE, 'MM/DD/YYYY - "hour:"HH24') AS "DATE_WITH_HOURS",
+  TO_CHAR(365- (TRUNC(TO_DATE(TO_CHAR(SYSDATE, 'YYYY'), 'YYYY') + INTERVAL '1' YEAR - 1) - TRUNC(SYSDATE) + 1), '999') AS "DAYS_TIL_END_OF_YEAR",
+  LOWER(TO_CHAR(SYSDATE, 'Mon Dy YYYY')) AS "LOWERCASE",
+  TO_CHAR(40 * 8 * 5 * 52, '$999,999') AS "INITIAL_SALARY"
+FROM DUAL;
+
+
+--2
+SELECT
+  e.EMPLOYEE_ID AS "EMPLOYEE_ID",
+  e.FIRST_NAME || ' ' || e.LAST_NAME || NVL2(l.ORIGINATION_DATE, ' has processed a loan.', ' has not processed a loan.') AS "Employee Information",
+  'Loan started: ' || TO_CHAR(l.ORIGINATION_DATE, 'Mon-DD-YYYY') AS "Loan Origination Date"
+FROM
+  EMPLOYEE e LEFT JOIN LOANS l ON e.EMPLOYEE_ID = l.EMPLOYEE_ID
+ORDER BY
+  e.EMPLOYEE_ID, TO_CHAR(l.ORIGINATION_DATE, 'MON-DD-YYYY');
+
+
+--3
+SELECT
+  UPPER(e.LAST_NAME) || ', ' || SUBSTR(e.FIRST_NAME, 1, 1) AS "Employee Name",
+  b.BRANCH_STATE,
+  TO_CHAR(e.BIRTHDATE, 'DD-Mon-YYYY') AS "Date of Birth",
+  e.PHONE_NUMBER AS "Phone Number"
+FROM
+  EMPLOYEE e JOIN BRANCH b ON e.BRANCH_ID = b.BRANCH_ID
+WHERE
+  e.BIRTHDATE >= TO_DATE('2000-01-01', 'YYYY-MM-DD') 
+  AND (b.BRANCH_STATE = 'NY' OR b.BRANCH_STATE = 'MD')
+ORDER BY
+  'Date of Birth';
+    --results need to be switched
+    
+--4
+  
+SELECT
+  UPPER(FIRST_NAME || ' ' || LAST_NAME) AS "NAME",
+  EMP_LEVEL,
+  TO_CHAR(CASE
+    WHEN EMP_LEVEL = 1 THEN 38000 
+    WHEN EMP_LEVEL = 2 THEN 50001 
+    WHEN EMP_LEVEL = 3 THEN 80001
+    END, '$999,999') || ' to' ||
+  TO_CHAR(CASE
+    WHEN EMP_LEVEL = 1 THEN 50000 
+    WHEN EMP_LEVEL = 2 THEN 80000 
+    WHEN EMP_LEVEL = 3 THEN 105000
+    END, '$999,999')
+   AS "SALARY"
+FROM
+  EMPLOYEE
+ORDER BY
+  EMP_LEVEL DESC, "NAME" ASC; 
+  
+  
+--5
+SELECT 
+    (m.FIRST_NAME || ' ' || 
+    NVL2(m.MIDDLE_NAME, SUBSTR(m.MIDDLE_NAME, 1, 1) || '. ', ' ') || 
+    m.LAST_NAME) AS "FULL_NAME",
+    m.EMAIL_ADDRESS,
+    LENGTH(m.EMAIL_ADDRESS) as "EMAIL_LENGTH", 
+    LOAN_NUMBER,
+    ROUND(SYSDATE - ORIGINATION_DATE) as "DAYS_SINCE_LOAN_ORIGINATED"
+FROM MEMBERS m JOIN LOANS l ON m.MEMBER_ID = l.MEMBER_ID
+WHERE ROUND(SYSDATE - ORIGINATION_DATE) > 500
+ORDER BY "DAYS_SINCE_LOAN_ORIGINATED";
+  
+  
+  
+--6
+SELECT 
+    EMPLOYEE_ID,
+    FIRST_NAME,
+    LAST_NAME,
+    SUBSTR(PHONE_NUMBER, 1, INSTR(PHONE_NUMBER, '-') - 1) AS PHONE_AREA_CODE,
+    SUBSTR(EMAIL, 1, INSTR(EMAIL, '@') - 1) AS EMAIL_ID
+FROM EMPLOYEE
+ORDER BY "PHONE_AREA_CODE";
+  
+  
+--7 
+SELECT
+  DISTINCT m.first_name || ' ' || m.last_name AS Member_Name,
+  SUBSTR(t.TAX_ID, 1, 3) || '-***-*****' AS redacted_tax_id
+FROM
+  MEMBERS m JOIN MEMBER_TAX_ID t ON m.MEMBER_ID = t.MEMBER_ID
+JOIN
+  Loans l ON m.member_id = l.member_id
+WHERE
+  l.ORIGINATION_DATE > TO_DATE('2023-01-01', 'YYYY-MM-DD')
+ORDER BY
+  Member_Name;
+
+--8
+SELECT
+    CASE
+        WHEN interest_rate > 5.5 THEN 'High Interest Rate'
+        WHEN interest_rate BETWEEN 3.5 AND 5.5 THEN 'Medium Interest Rate'
+        ELSE 'Low Interest Rate'
+    END AS interest_type,
+    interest_rate,
+    loan_type,
+    loan_number
+FROM loans
+ORDER BY interest_type, interest_rate;
+
+
+--union query test for question 8 (ignore)
+select 'High Interest Rate ' as interest_type, interest_rate, loan_type, loan_number
+from loans
+where interest_rate > 5.5
+union
+select 'Medium Interest Rate' as interest_type, interest_rate, loan_type, loan_number
+from loans
+where interest_rate between 3.5 and 5.5
+union
+select 'Low Interest Rate ' as interest_type, interest_rate, loan_type, loan_number
+from loans
+where interest_rate < 3.5
+order by interest_rate desc;
+
+--ignore, test for differences
+
+(SELECT
+    CASE
+        WHEN interest_rate > 5.5 THEN 'High Interest Rate'
+        WHEN interest_rate BETWEEN 3.5 AND 5.5 THEN 'Medium Interest Rate'
+        ELSE 'Low Interest Rate'
+    END AS interest_type,
+    interest_rate,
+    loan_type,
+    loan_number
+FROM loans)
+
+MINUS
+
+(select 'High Interest Rate ' as interest_type, interest_rate, loan_type, loan_number
+from loans
+where interest_rate > 5.5
+union
+select 'Medium Interest Rate' as interest_type, interest_rate, loan_type, loan_number
+from loans
+where interest_rate between 3.5 and 5.5
+union
+select 'Low Interest Rate ' as interest_type, interest_rate, loan_type, loan_number
+from loans
+where interest_rate < 3.5);
+
+
+--9
+SELECT 
+    e.FIRST_NAME,
+    e.LAST_NAME,
+    e.EMP_LEVEL,
+    SUM(l.ORIGINAL_AMOUNT) AS TOTAL_ORIGINAL_AMOUNT,
+    DENSE_RANK() OVER (ORDER BY SUM(l.ORIGINAL_AMOUNT) DESC) AS TOTAL_AMOUNT_RANK
+FROM EMPLOYEE e JOIN LOANS l ON e.EMPLOYEE_ID = l.EMPLOYEE_ID
+GROUP BY
+  e.FIRST_NAME, e.LAST_NAME, e.EMP_LEVEL
+ORDER BY
+  TOTAL_ORIGINAL_AMOUNT DESC;
+
+
+
+--10
+
+--PART A
+SELECT
+  FIRST_NAME,
+  LAST_NAME,
+  EMP_LEVEL,
+  TOTAL_ORIGINAL_AMOUNT,
+  TOTAL_AMOUNT_RANK
+FROM (
+  SELECT
+    e.FIRST_NAME,
+    e.LAST_NAME,
+    e.EMP_LEVEL,
+    SUM(l.ORIGINAL_AMOUNT) AS TOTAL_ORIGINAL_AMOUNT,
+    DENSE_RANK() OVER (ORDER BY SUM(l.ORIGINAL_AMOUNT) DESC) AS TOTAL_AMOUNT_RANK
+  FROM EMPLOYEE e
+  JOIN LOANS l ON e.EMPLOYEE_ID = l.EMPLOYEE_ID
+  GROUP BY
+    e.FIRST_NAME, e.LAST_NAME, e.EMP_LEVEL
+)
+WHERE ROWNUM <= 6
+ORDER BY
+  TOTAL_ORIGINAL_AMOUNT DESC;
+
+
+--PART B
+SELECT
+  FIRST_NAME,
+  LAST_NAME,
+  EMP_LEVEL,
+  TOTAL_ORIGINAL_AMOUNT,
+  TOTAL_AMOUNT_RANK
+FROM (
+  SELECT
+    e.FIRST_NAME,
+    e.LAST_NAME,
+    e.EMP_LEVEL,
+    SUM(l.ORIGINAL_AMOUNT) AS TOTAL_ORIGINAL_AMOUNT,
+    DENSE_RANK() OVER (ORDER BY SUM(l.ORIGINAL_AMOUNT) DESC) AS TOTAL_AMOUNT_RANK
+  FROM EMPLOYEE e
+  JOIN LOANS l ON e.EMPLOYEE_ID = l.EMPLOYEE_ID
+  GROUP BY
+    e.FIRST_NAME, e.LAST_NAME, e.EMP_LEVEL
+)
+WHERE TOTAL_AMOUNT_RANK <= 4
+ORDER BY
+  TOTAL_ORIGINAL_AMOUNT DESC;
+
+

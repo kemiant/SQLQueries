@@ -1,0 +1,203 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2636
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 --Question 1 : ORDER Cancellation\
+\
+--Figure out how to specify only cancelled orders\
+SELECT DISTINCT status\
+FROM orders;\
+--null and returned\
+\
+--a) What fraction of the orders was cancelled?\
+SELECT \
+    COUNT(CASE WHEN STATUS = 'Returned' THEN 1 END) AS cancelled_count,\
+    COUNT(*) AS total_orders,\
+    ROUND(COUNT(CASE WHEN STATUS = 'Returned' THEN 1 END) / COUNT(*) * 100.0 , 2) AS cancellation_percentage,\
+    COUNT(CASE WHEN STATUS = 'Returned' THEN 1 END)/ COUNT(*) AS cancellation_fraction\
+FROM orders;\
+\
+--The fraction of the orders that was cancelled was 60/6428. This is approximately\
+--around 0.93% of orders are cancelled orders. I assumed that returned\
+--status of the orders meant that the orders were cancelled.\
+\
+\
+--b) What were the sales from cancelled orders?\
+SELECT TO_CHAR(SUM(od.ORDSALES), '$999,999.99') as cancelled_sales\
+FROM ORDERS o\
+JOIN ORDERDET od ON o.ORDERID = od.ORDERID\
+WHERE o.STATUS = 'Returned';\
+\
+--The sales from cancelled orders is $308,455.12.\
+\
+\
+--c) Who are the top five customers in terms of cancelled orders?\
+SELECT c.CUSTID, c.CUSTNAME, COUNT(o.ORDERID) AS cancelled_orders\
+FROM CUSTOMERS c\
+JOIN ORDERDET od ON c.CUSTID = od.CUSTID\
+JOIN ORDERS o ON od.ORDERID = o.ORDERID\
+WHERE o.STATUS = 'Returned' \
+GROUP BY c.CUSTID, c.CUSTNAME\
+ORDER BY COUNT(o.ORDERID) DESC;\
+\
+\
+--The top five customers in terms of cancelled orders is Hanzel Jennings, Jenny Gold\
+--Keith Marsh, Billy Perry Browning, and Gordon Brandt.\
+\
+\
+\
+\
+\
+\
+\
+--QUESTION 2: CUSTOMER related:\
+\
+--a) Who are the top 10 customers in terms of revenues generated?\
+SELECT c.CUSTID, c.CUSTNAME, SUM(od.ORDSALES) AS "Sales Revenue Generated"\
+FROM CUSTOMERS c LEFT JOIN ORDERDET od\
+ON c.CUSTID = od.CUSTID\
+GROUP BY c.CUSTID, c.CUSTNAME\
+HAVING SUM(od.ORDSALES) IS NOT NULL\
+ORDER BY SUM(od.ORDSALES) DESC;\
+\
+--The top 10 customers in terms of revenue generated is Gordon Brandt, Glen Caldwell,\
+--Rosemary O'Brien, Leigh Burnette Hurley, Kristine Connoly, Nina Horne Kelly,\
+--Neal Wolfe, Priscilla Kane, Dana Teague, and Kim Weiss.\
+\
+\
+--b) Are there customers who buy mostly some categories of products and there is a\
+--potential for them to buy other product categories?\
+SELECT c.CUSTID, c.CUSTNAME, p.PRODCAT, COUNT(DISTINCT od.PRODID) AS purchasedCat,\
+SUM(od.ORDQTY) as "Total Product Sales"\
+FROM CUSTOMERS c\
+JOIN ORDERDET od ON c.CUSTID = od.CUSTID\
+JOIN PRODUCTS p ON od.PRODID = p.PRODID\
+GROUP BY c.CUSTID, c.CUSTNAME, p.PRODCAT\
+ORDER BY c.CUSTID;\
+\
+--There are customers who buy mostly some categories of products like Bonnie Potter\
+--who buy mainly Office Supplies, but sometimes they buy products from the Technology\
+--categories. Similar with Ricky Hensly, except he sometimes buy one product from furnitures.\
+--Thus we can conclude that it's possible for customers who buy mostly some categories \
+--of products and there is a potential for them to buy other product categories.\
+\
+--I just assumed that by some categories that the majorities of products bought \
+--are only purchase from 1 or 3 categories. THe possibility that they buy other product category is shown\
+--in the other category and how many diffrent products and total products overall \
+--they bought from there.\
+\
+    \
+\
+\
+\
+\
+\
+\
+\
+--QUESTION 3\
+\
+--a) How much more or less are the actual sales value compared to the theoretical\
+--sales value?\
+\
+SELECT\
+    SUM(p.PRODUNITPRICE * od.ORDQTY * (1 - od.ORDDISCOUNT) + od.ORDSHIPCOST) as theorySales,\
+    SUM(od.ORDSALES) as actualSales,\
+    (SUM(p.PRODUNITPRICE * od.ORDQTY * (1 - od.ORDDISCOUNT) + od.ORDSHIPCOST)) - SUM(od.ORDSALES) as differenceSales\
+FROM ORDERDET od\
+JOIN PRODUCTS p ON od.PRODID = p.PRODID;\
+\
+--Compared to the actual sales value, the theoretical sales value \
+--was overestimated by $21,791.26.\
+\
+\
+\
+--b) Are certain managers generally pricing more or less than theoretical sales?\
+--Analyze the differences based on the regions/managers.\
+SELECT\
+    m.REGMANAGER,\
+    c.CUSTREG as RegionID,\
+    REGION,\
+    SUM(p.PRODUNITPRICE * od.ORDQTY * (1 - od.ORDDISCOUNT) + od.ORDSHIPCOST) AS theorySales,\
+    SUM(od.ORDSALES) AS actualSales,\
+    TO_CHAR(ROUND(\
+    (SUM(p.PRODUNITPRICE * od.ORDQTY * (1 - od.ORDDISCOUNT) + od.ORDSHIPCOST)) - SUM(od.ORDSALES)\
+    , 2), '$999,999.99') as differenceSales\
+FROM ORDERDET od\
+JOIN PRODUCTS p ON od.PRODID = p.PRODID\
+JOIN CUSTOMERS c ON od.CUSTID = c.CUSTID\
+JOIN MANAGERS m ON c.CUSTREG = m.REGID\
+GROUP BY m.REGMANAGER, c.CUSTREG, REGION\
+ORDER BY m.REGMANAGER, c.CUSTREG;\
+\
+--All managers overall price lower than the theoretical sales. However there are differences\
+--within the regional managers from the West Region. It seems that William is pricing products\
+--more cheaper compared to the other managers at a differences of $12,282.42, while\
+--other managers lie around $3,000.00.\
+\
+\
+\
+--QUESTION 4: these are product related questions:\
+\
+--a) Products have numbers within its name. Identify the product names with digits in\
+--their name. (hint: use REGEXP_LIKE)\
+SELECT PRODNAME as "Product Name"\
+FROM PRODUCTS\
+WHERE REGEXP_LIKE(PRODNAME, '\\d');\
+    \
+    \
+--b) Which are the top 5 selling products during the year 2011?\
+SELECT p.PRODID, p.PRODNAME, SUM(od.ORDQTY) as "Total Product Sales",\
+COUNT(od.PRODID) as "Products Sold"\
+FROM PRODUCTS p JOIN\
+ORDERDET od ON p.PRODID = od.PRODID\
+WHERE TO_DATE(ORDSHIPDATE, 'DD-MON-YY') >= TO_DATE('01-JAN-11', 'DD-MON-YY')\
+  AND TO_DATE(ORDSHIPDATE, 'DD-MON-YY') <= TO_DATE('31-DEC-11', 'DD-MON-YY')\
+GROUP BY p.PRODID, p.PRODNAME\
+ORDER BY "Total Product Sales" DESC;\
+\
+--The top 5 selling products during the year 2011 is the Acco Perma\'ae 3000 Stacking Storage Drawers,\
+--Belkin ErgoBoard\'99 Keyboard, Peel & Seel\'ae Recycled Catalog Envelopes, Brown,\
+--Xerox 1927, and the Belkin 5 Outlet SurgeMaster\'99 Power Centers. I assumed that the \
+--top selling products meant also taking in account the order quantity of of the product in\
+--each order as to asses the top 5 selling products as it would make the most money.\
+--For instance, the Xerox 1968 may be ordered 7 times, it still made more sales (186 vs 159) \
+--due to the quantity than -O'Sullivan 3-Shelf Heavy-Duty Bookcases which was ordered 11 times.\
+\
+\
+--c) Which are the top 10 products with greatest total profit margin? (i.e.,\
+--sales*margin).\
+SELECT p.PRODID, p.PRODNAME, SUM(ORDSALES * PRODMARGIN) as "Total Profit Margin"\
+FROM PRODUCTS p\
+JOIN ORDERDET od ON p.PRODID = od.PRODID\
+GROUP BY p.PRODID, p.PRODNAME\
+ORDER BY "Total Profit Margin" DESC;\
+\
+/* \
+The top 10 products with the greatest total profit margin is Riverside Palais Royal Lawyers Bookcase, Royale Cherry Finish,\
+Global Troy\'99 Executive Leather Low-Back Tilter,Bretford CR8500 Series Meeting Room Furniture,\
+Canon PC1080F Personal Copier, Hon 2090 \'93Pillow Soft\'94 Series Mid Back Swivel/Tilt Chairs,\
+Chromcraft Bull-Nose Wood 48" x 96" Rectangular Conference Tables, Lexmark 4227 Plus Dot Matrix Printer,\
+Hon Multipurpose Stacking Arm Chairs, BoxOffice By Design Rectangular and Half-Moon Meeting Room Tables,\
+and Canon imageCLASS 2200 Advanced Copier.\
+*/\
+\
+\
+--d) Identify the worst five products in terms of sales?\
+SELECT p.PRODID, p.PRODNAME, SUM(od.ORDQTY) as "Total Product Sales",\
+COUNT(od.PRODID) as "Products Sold"\
+FROM PRODUCTS p JOIN\
+ORDERDET od ON p.PRODID = od.PRODID\
+GROUP BY p.PRODID, p.PRODNAME\
+ORDER BY "Total Product Sales";\
+\
+/*\
+The worst 5 products in terms of sales is APC 7 Outlet Network SurgeArrest Surge Protector,\
+Tenex Traditional Chairmats for Medium Pile Carpet, Standard Lip, 36" x 48",\
+Global Deluxe Stacking Chair, Gray, Hewlett Packard 610 Color Digital Copier / Printer, and the\
+Eldon\'ae Executive Woodline II Desk Accessories, Mahogany.\
+*/\
+\
+}

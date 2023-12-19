@@ -1,0 +1,187 @@
+SET SERVEROUTPUT ON;
+
+--1 Part A
+DECLARE
+  count_loans NUMBER;
+BEGIN
+  SELECT COUNT(*) INTO count_loans
+  FROM loans
+  WHERE member_id = 1018;
+  IF count_loans > 1 THEN
+    DBMS_OUTPUT.PUT_LINE('The member has taken out more than 1 loan.');
+  ELSE
+    DBMS_OUTPUT.PUT_LINE('The member has taken only 1 loan.');
+  END IF;
+END;
+/
+
+--1 Part B
+DELETE FROM loans
+WHERE loan_number = 'SNB000100112' AND member_id = 1018;
+
+--1 Part C
+-- I got a different output
+
+--1 Part D
+ROLLBACK;
+
+
+
+
+--2 
+SET DEFINE ON;
+
+DECLARE
+  member_id_value LOANS.MEMBER_ID%TYPE;
+  count_loans_value NUMBER;
+BEGIN
+  member_id_value := &member_id;
+BEGIN
+    SELECT COUNT(*) INTO count_loans_value
+    FROM LOANS
+    WHERE MEMBER_ID = member_id_value;
+    IF count_loans_value > 1 THEN
+      DBMS_OUTPUT.PUT_LINE('The member with ID:' || member_id_value || ' has taken out more than 1 loan.');
+    ELSIF count_loans_value = 1 THEN
+      DBMS_OUTPUT.PUT_LINE('The member with ID:' || member_id_value || ' has taken out only 1 loan.');
+    ELSE
+        DBMS_OUTPUT.PUT_LINE('Invalid Member ID: ' || member_id_value);
+    END IF;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+      DBMS_OUTPUT.PUT_LINE('Invalid Member ID: ' || member_id_value);
+    WHEN OTHERS THEN
+      DBMS_OUTPUT.PUT_LINE('An error occurred.');
+  END;
+END;
+/
+
+
+
+
+
+
+
+--3 
+DECLARE
+  branch_id_value   branch.branch_id%TYPE := 'B35';
+  branch_name_value branch.branch_name%TYPE := 'Richmond 45';
+  street_value      branch.street%TYPE := '32 Main Rd.';
+  city_value        branch.city%TYPE := 'Richmond';
+  state_value       branch.branch_state%TYPE := 'TX';
+  zipcode_value       branch.zip_code%TYPE := '77407';
+BEGIN
+  SELECT branch_id_sq.NEXTVAL INTO branch_id_value FROM dual;
+  INSERT INTO branch (branch_id, branch_name, street, city, branch_state, zip_code)
+  VALUES (branch_id_value, branch_name_value, street_value, city_value, state_value, zipcode_value);
+  --COMMIT;
+  DBMS_OUTPUT.PUT_LINE('1 row was inserted into the branch table.');
+  EXCEPTION
+    WHEN OTHERS THEN
+      DBMS_OUTPUT.PUT_LINE('Row was not inserted. Unexpected exception occurred: ' || SQLERRM);
+      ROLLBACK;
+END;
+/
+
+
+
+--4
+DECLARE
+  TYPE loan_status_list IS TABLE OF loans.loan_status%TYPE INDEX BY PLS_INTEGER;
+  v_loan_statuses loan_status_list;
+BEGIN
+  SELECT DISTINCT loan_status BULK COLLECT INTO v_loan_statuses FROM loans ORDER BY loan_status;
+  FOR i IN 1..v_loan_statuses.COUNT LOOP
+    DBMS_OUTPUT.PUT_LINE('Loan status ' || i || ' is: ' || v_loan_statuses(i));
+  END LOOP;
+END;
+/
+
+
+--5
+DECLARE
+  CURSOR loan_cursor IS
+    SELECT l.loan_number, l.loan_status,
+           COUNT(t.transaction_id) AS payment_count
+      FROM loans l LEFT JOIN TRANSACTION_HISTORY t ON l.loan_number = t.loan_number
+  GROUP BY l.loan_number, l.loan_status
+  ORDER BY l.loan_status, l.loan_number;
+  v_loan_rec loan_cursor%ROWTYPE;
+BEGIN
+  OPEN loan_cursor;
+  LOOP
+    FETCH loan_cursor INTO v_loan_rec;
+    EXIT WHEN loan_cursor%NOTFOUND;
+    
+    DBMS_OUTPUT.PUT_LINE('Loan Number: ' || v_loan_rec.loan_number ||
+                        ' of status ' || v_loan_rec.loan_status ||
+                        'has ' || v_loan_rec.payment_count ||
+                        ' payments.');
+  END LOOP;
+  CLOSE loan_cursor;
+END;
+/
+
+
+--6
+CREATE OR REPLACE PROCEDURE insert_branch(
+  p_branch_name IN branch.branch_name%TYPE,
+  p_street IN branch.street%TYPE,
+  p_city IN branch.city%TYPE,
+  p_state IN branch.branch_state%TYPE,
+  p_zipcode IN branch.zip_code%TYPE
+)
+IS
+  branch_id_value   branch.branch_id%TYPE;
+BEGIN
+  SELECT branch_id_sq.NEXTVAL INTO branch_id_value FROM dual;
+  INSERT INTO branch (branch_id, branch_name, street, city, branch_state, zip_code)
+  VALUES (branch_id_value, p_branch_name, p_street, p_city, p_state, p_zipcode);
+  COMMIT;
+  DBMS_OUTPUT.PUT_LINE('1 row was inserted into the branch table.');
+EXCEPTION
+  WHEN OTHERS THEN
+    ROLLBACK;
+    DBMS_OUTPUT.PUT_LINE('Row was not inserted. Unexpected exception occurred.');
+END insert_branch;
+/
+
+-- Test the procedure
+CALL insert_branch ('Austin 22', '22 Austin St', 'Austin', 'TX', '72222');
+
+BEGIN
+  insert_branch ('Houston 33', '33 Houston St', 'Houston', 'TX', '73333');
+END;
+/
+
+
+
+--7
+CREATE OR REPLACE FUNCTION loan_count
+  (
+  num_loans NUMBER
+  )
+RETURN NUMBER as total_number_loans NUMBER;
+
+BEGIN
+    SELECT SUM(original_amount) INTO total_number_loans
+    FROM LOANS
+    WHERE member_id = num_loans;
+    
+    RETURN total_number_loans;
+END;
+/
+
+
+-- Test 1
+SELECT member_id, last_name, loan_count(member_id)
+FROM members
+GROUP BY member_id, last_name
+ORDER BY member_id;
+
+-- Test 2
+SELECT member_id, last_name, loan_count(member_id)
+FROM members
+WHERE loan_count(member_id) > 1
+GROUP BY member_id, last_name
+ORDER BY member_id;
